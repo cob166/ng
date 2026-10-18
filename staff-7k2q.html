@@ -111,11 +111,12 @@
   .irow{background:var(--soft); border-radius:12px; padding:12px; margin-bottom:10px}
   .irow-h{display:flex; align-items:center; gap:10px; margin-bottom:10px}
   .idx{flex:0 0 24px; height:24px; border-radius:50%; background:var(--ink); color:var(--bg); font-size:13px; display:flex; align-items:center; justify-content:center}
-  .irow-h input{flex:1; background:var(--card)}
+  .irow-h input{flex:1; background:var(--card); padding-left:22px}
   .del{flex:0 0 36px; height:36px; border:0; background:none; color:var(--sub); font-size:24px; line-height:1; cursor:pointer}
-  .irow-g{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+  .irow-g{display:grid; grid-template-columns:1.2fr 1.2fr .75fr 1.2fr; gap:6px}
   .irow-g label{display:block; font-size:13px; color:var(--sub)}
   .irow-g input{margin-top:4px; padding:10px 8px; font-size:16px; text-align:right; background:var(--card)}
+  .irow-g input[data-k="unit"]{text-align:center; padding-left:2px; padding-right:2px}
   .irow input.bad{border-color:var(--bad)}
   .irow input.auto{background:var(--okbg)}
   .calc-tip{font-size:13px; color:var(--sub); line-height:1.6; margin:-2px 0 10px}
@@ -255,7 +256,9 @@
   // 部署 Worker 后，把这里改成你的 Worker 地址
   var UPLOAD_URL = "https://idcard.cai666888.dpdns.org";
 
-  var NUM = /^\d+(?:\.\d{1,4})?$/;
+  var NUM = /^\d+(?:\.\d{1,2})?$/;
+  function f2(v){ return NUM.test(String(v)) ? Number(v).toFixed(2) : v; }
+  function clip2(v){ v = v.replace(/[^\d.]/g, ""); var i = v.indexOf("."); if (i >= 0) v = v.slice(0, i + 1) + v.slice(i + 1).replace(/\./g, "").slice(0, 2); return v; }
   var W = [7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2];
   var CK = ["1","0","X","9","8","7","6","5","4","3","2"];
   var PLEDGE = "本人自愿卖掉自己的私有物品，该物品来源合法，属于我个人所有，不是盗取、骗取和来路不明物品。如今后发现该物品涉及刑、民事纠纷等，我个人愿意承担一切责任。\n因货物构成犯法或个人争议，一律由确认签字人承担，与本店无关。特此承诺！";
@@ -486,6 +489,7 @@
       '<div class="irow-g">' +
         '<label>单价<input data-k="price" inputmode="decimal" placeholder="0"></label>' +
         '<label>数量<input data-k="qty" inputmode="decimal" placeholder="0"></label>' +
+        '<label>单位<input data-k="unit" value="克" maxlength="6" autocomplete="off"></label>' +
         '<label>总额<input data-k="amount" inputmode="decimal" placeholder="0"></label>' +
       '</div>';
     itemsBox.appendChild(d); renumber();
@@ -498,7 +502,7 @@
     var b = e.target.closest(".del"); if (!b) return;
     var row = b.closest(".irow");
     if (rows().length > 1) row.remove();
-    else { Array.prototype.forEach.call(row.querySelectorAll("input"), function(i){ i.value = ""; i.classList.remove("bad"); }); resetCalcState(row); }
+    else { Array.prototype.forEach.call(row.querySelectorAll("input"), function(i){ i.value = (i.getAttribute("data-k") === "unit") ? "克" : ""; i.classList.remove("bad"); }); resetCalcState(row); }
     renumber(); updateSum(); downloaded = false; scheduleDraw();
   });
   // 单价 / 数量 / 总额：填任意两项，第三项自动算（浅绿色的是自动算出的）
@@ -532,8 +536,8 @@
       if (NUM.test(val[man[0]]) && NUM.test(val[man[1]])) {
         var res = "";
         if (tgt === "amount") res = (Math.round(Number(p) * Number(q) * 100) / 100).toFixed(2);
-        else if (tgt === "price" && Number(q) > 0) res = trimNum(Number(a) / Number(q), 4);
-        else if (tgt === "qty" && Number(p) > 0) res = trimNum(Number(a) / Number(p), 4);
+        else if (tgt === "price" && Number(q) > 0) res = (Number(a) / Number(q)).toFixed(2);
+        else if (tgt === "qty" && Number(p) > 0) res = (Number(a) / Number(p)).toFixed(2);
         fld(row, tgt).value = res; auto = res ? tgt : "";
       }
     }
@@ -542,6 +546,7 @@
   itemsBox.addEventListener("input", function(e){
     var t = e.target, k = t.getAttribute("data-k"); if (!k) return;
     t.classList.remove("bad");
+    if (FIELDS.indexOf(k) >= 0) { var c = clip2(t.value); if (c !== t.value) t.value = c; }
     if (FIELDS.indexOf(k) >= 0) calcRow(t.closest(".irow"), k);
     updateSum(); downloaded = false; scheduleDraw();
   });
@@ -557,7 +562,7 @@
   function lenientItems(){
     var out = [];
     rows().forEach(function(r){
-      var o = {name: rv(r, "name"), price: rv(r, "price"), qty: rv(r, "qty"), amount: rv(r, "amount")};
+      var o = {name: rv(r, "name"), price: rv(r, "price"), qty: rv(r, "qty"), unit: rv(r, "unit"), amount: rv(r, "amount")};
       if (!o.amount) { var a = calcAmount(o.price, o.qty); if (a) o.amount = a; }
       if (o.name || o.price || o.qty || o.amount) out.push(o);
     });
@@ -578,7 +583,7 @@
   function collectItems(){
     var out = [], err = "", names = {price:"单价", qty:"数量", amount:"总额"};
     rows().forEach(function(r, i){
-      var o = {name: rv(r, "name"), price: rv(r, "price"), qty: rv(r, "qty"), amount: rv(r, "amount")};
+      var o = {name: rv(r, "name"), price: rv(r, "price"), qty: rv(r, "qty"), unit: rv(r, "unit"), amount: rv(r, "amount")};
       if (!o.name && !o.price && !o.qty && !o.amount) return;
       if (!o.amount) {
         var a = calcAmount(o.price, o.qty);
@@ -587,10 +592,11 @@
       if (!o.name) { err = err || "第 " + (i+1) + " 行请填写品种"; r.querySelector('[data-k="name"]').classList.add("bad"); }
       ["price","qty","amount"].forEach(function(k){
         if (o[k] && !NUM.test(o[k])) {
-          err = err || "第 " + (i+1) + " 行" + names[k] + "只能填数字（最多 4 位小数）";
+          err = err || "第 " + (i+1) + " 行" + names[k] + "只能填数字（最多 2 位小数）";
           r.querySelector('[data-k="' + k + '"]').classList.add("bad");
         }
       });
+      o.price = f2(o.price); o.qty = f2(o.qty); o.amount = f2(o.amount);
       out.push(o);
     });
     return {items: out, error: err};
@@ -661,23 +667,24 @@
     // 物品明细
     section("物品明细");
     y += 14;
-    // 列宽：序号70 品种360 单价180 数量150 总额220（总额加宽，避免金额被裁掉）
-    var cw = [70, 360, 180, 150, 220], cx = [M];
-    for (var i = 0; i < 4; i++) cx.push(cx[i] + cw[i]);
+    // 列宽：序号70 品种300 单价170 数量150 单位90 总额200
+    var cw = [70, 300, 170, 150, 90, 200], cx = [M];
+    for (var i = 0; i < 5; i++) cx.push(cx[i] + cw[i]);
     g.fillStyle = "#eef1ed"; g.fillRect(M, y, CW, 54);
     g.fillStyle = sub; g.font = "600 24px " + F;
     g.textAlign = "left";
     g.fillText("序号", cx[0] + 14, y + 36);
-    g.fillText("品种", cx[1] + 14, y + 36);
+    g.fillText("品种", cx[1] + 28, y + 36);
     g.textAlign = "right";
     g.fillText("单价", cx[2] + cw[2] - 14, y + 36);
     g.fillText("数量", cx[3] + cw[3] - 14, y + 36);
-    g.fillText("总额", cx[4] + cw[4] - 14, y + 36);
+    g.textAlign = "left"; g.fillText("单位", cx[4] + 12, y + 36); g.textAlign = "right";
+    g.fillText("总额", cx[5] + cw[5] - 14, y + 36);
     y += 54;
 
     var rowEls = rows(), list = [], total = 0;
     rowEls.forEach(function(r){
-      var name = rv(r, "name"), price = rv(r, "price"), qty = rv(r, "qty"), amount = rv(r, "amount");
+      var name = rv(r, "name"), price = rv(r, "price"), qty = rv(r, "qty"), unit = rv(r, "unit"), amount = rv(r, "amount");
       if (!name && !price && !qty && !amount) return;
       var pr = Number(price), qt = Number(qty);
       // 只在总额为空时才自动填，避免覆盖用户输入的总额
@@ -689,7 +696,7 @@
       } else if (price !== "" && qty !== "" && isFinite(pr) && isFinite(qt)) {
         amount = (Math.round(pr * qt * 100) / 100).toFixed(2);
       }
-      list.push({name: name, price: price, qty: qty, amount: amount});
+      list.push({name: name, price: f2(price), qty: f2(qty), unit: unit, amount: amount});
       total += Number(amount) || 0;
     });
     if (!list.length) list = [{}, {}, {}];
@@ -700,11 +707,12 @@
       g.fillStyle = ink; g.font = "25px " + F;
       g.textAlign = "left";
       if (it.name || it.price || it.qty || it.amount) g.fillText(String(idx + 1), cx[0] + 14, y + 36);
-      g.fillText(it.name || "", cx[1] + 14, y + 36, cw[1] - 28);
+      g.fillText(it.name || "", cx[1] + 28, y + 36, cw[1] - 42);
       g.textAlign = "right";
       g.fillText(it.price || "", cx[2] + cw[2] - 14, y + 36);
       g.fillText(it.qty || "", cx[3] + cw[3] - 14, y + 36);
-      g.fillText(it.amount || "", cx[4] + cw[4] - 14, y + 36);
+      g.textAlign = "left"; g.fillText(it.unit || "", cx[4] + 12, y + 36, cw[4] - 16); g.textAlign = "right";
+      g.fillText(it.amount || "", cx[5] + cw[5] - 14, y + 36);
       y += 54;
     });
 
@@ -712,7 +720,7 @@
     g.fillStyle = ink; g.font = "700 28px " + F; g.textAlign = "left";
     g.fillText("总计", cx[0] + 14, y + 38);
     g.textAlign = "right"; g.fillStyle = accent; g.font = "700 28px " + F;
-    g.fillText("¥ " + money(total), cx[4] + cw[4] - 14, y + 38);
+    g.fillText("¥ " + money(total), cx[5] + cw[5] - 14, y + 38);
     g.strokeStyle = line; g.lineWidth = 1.5;
     g.strokeRect(M, y - (list.length + 1) * 54, CW, (list.length + 1) * 54 + 56);
     y += 56; g.textAlign = "left";
@@ -850,8 +858,8 @@
   }
   function detailHtml(d){
     var its = d.items || [];
-    var t = its.length ? '<table class="mini"><tr><th>品种</th><th>单价</th><th>数量</th><th>总额</th></tr>' +
-      its.map(function(x){ return '<tr><td>' + esc(x.name) + '</td><td>' + esc(x.price) + '</td><td>' + esc(x.qty) + '</td><td>' + esc(x.amount) + '</td></tr>'; }).join("") + '</table>'
+    var t = its.length ? '<table class="mini"><tr><th>品种</th><th>单价</th><th>数量</th><th>单位</th><th>总额</th></tr>' +
+      its.map(function(x){ return '<tr><td>' + esc(x.name) + '</td><td>' + esc(x.price) + '</td><td>' + esc(x.qty) + '</td><td>' + esc(x.unit || "") + '</td><td>' + esc(x.amount) + '</td></tr>'; }).join("") + '</table>'
       : '<div class="rc-meta">没有物品明细。</div>';
     return t + '<div class="rc-meta">登记时间：' + esc(d.submittedAt || "") + '<br>存档时间：' + esc(fmtFull(d.confirmedAt)) + (d.payMethod ? '<br>收款方式：' + esc(d.payMethod) : '') + '</div>' +
       '<button class="btn ghost danger sm" type="button" data-del="' + esc(d.id) + '">删除这条存档</button>';
@@ -897,11 +905,11 @@
   $("dlCsv").addEventListener("click", function(){
     var btn = this; btn.disabled = true; var old = btn.textContent; btn.textContent = "准备中…";
     api("/records", queryBody({detail: true, limit: 500})).then(function(j){
-      var out = [["存档时间","登记时间","姓名","性别","身份证号码","手机号码","居住地址","收款方式","品种","单价","数量","总额"].join(",")];
+      var out = [["存档时间","登记时间","姓名","性别","身份证号码","手机号码","居住地址","收款方式","品种","单价","数量","单位","总额"].join(",")];
       (j.items || []).forEach(function(r){
         var head = [csvCell(fmtFull(r.confirmedAt)), csvCell(r.submittedAt || ""), csvCell(r.name), csvCell(r.gender || ""), textCell(r.idno), textCell(r.mobile), csvCell(r.address), csvCell(r.payMethod || "")];
         var its = (r.items && r.items.length) ? r.items : [{}];
-        its.forEach(function(x){ out.push(head.concat([csvCell(x.name), csvCell(x.price), csvCell(x.qty), csvCell(x.amount)]).join(",")); });
+        its.forEach(function(x){ out.push(head.concat([csvCell(x.name), csvCell(x.price), csvCell(x.qty), csvCell(x.unit || ""), csvCell(x.amount)]).join(",")); });
       });
       var d = new Date();
       saveBlob(new Blob(["\ufeff" + out.join("\r\n")], {type: "text/csv;charset=utf-8"}),
