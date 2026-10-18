@@ -118,6 +118,7 @@
   .irow-g input{margin-top:4px; padding:10px 8px; font-size:16px; text-align:right; background:var(--card)}
   .irow-g input[data-k="unit"]{text-align:center; padding-left:2px; padding-right:2px}
   .irow input.bad{border-color:var(--bad)}
+  #payMethod.bad{border-color:var(--bad)}
   .irow input.auto{background:var(--okbg)}
   .calc-tip{font-size:13px; color:var(--sub); line-height:1.6; margin:-2px 0 10px}
   #sheet{display:block; width:100%; height:auto; border:1px solid var(--line); border-radius:6px; background:#fff}
@@ -551,7 +552,7 @@
     updateSum(); downloaded = false; scheduleDraw();
   });
 
-  if ($("payMethod")) $("payMethod").addEventListener("input", function(){ downloaded = false; scheduleDraw(); });
+  if ($("payMethod")) $("payMethod").addEventListener("input", function(){ this.classList.remove("bad"); downloaded = false; scheduleDraw(); });
 
   function calcAmount(price, qty){
     if (NUM.test(price) && NUM.test(qty)) {
@@ -591,7 +592,10 @@
       }
       if (!o.name) { err = err || "第 " + (i+1) + " 行请填写品种"; r.querySelector('[data-k="name"]').classList.add("bad"); }
       ["price","qty","amount"].forEach(function(k){
-        if (o[k] && !NUM.test(o[k])) {
+        if (!o[k]) {
+          err = err || "第 " + (i+1) + " 行请填写" + names[k];
+          r.querySelector('[data-k="' + k + '"]').classList.add("bad");
+        } else if (!NUM.test(o[k])) {
           err = err || "第 " + (i+1) + " 行" + names[k] + "只能填数字（最多 2 位小数）";
           r.querySelector('[data-k="' + k + '"]').classList.add("bad");
         }
@@ -800,8 +804,19 @@
     if (!cur) return;
     if (editing) { toast("请先点“完成”保存对顾客资料的修改。", "err"); return; }
     var r = collectItems();
-    if (r.error) { toast(r.error, "err"); return; }
+    if (r.error) {
+      toast(r.error, "err");
+      var badEl = itemsBox.querySelector("input.bad");
+      if (badEl) { try { badEl.scrollIntoView({block:"center"}); badEl.focus(); } catch(e) {} }
+      return;
+    }
     if (!r.items.length) { toast("请至少填写一行物品明细。", "err"); return; }
+    var payEl = $("payMethod");
+    if (payEl && !payEl.value.trim()) {
+      payEl.classList.add("bad"); toast("请填写收款方式。", "err");
+      try { payEl.scrollIntoView({block:"center"}); payEl.focus(); } catch(e) {}
+      return;
+    }
     var msg = downloaded ? "确认存档吗？" : "还没有下载登记单。\n存档后，顾客的照片和签名会从服务器删除，之后无法再生成登记单。\n\n仍要存档吗？";
     if (!confirm(msg)) return;
     var btn = $("btnConfirm"), id = curId; btn.disabled = true;
