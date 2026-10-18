@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f3ee">
+<title>回收黄金登记</title>
+<style>
+  :root{
+    --bg:#f5f3ee; --card:#ffffff; --ink:#1d2421; --sub:#6b726e; --line:#dcd8cd;
+    --ok:#1f6f4a; --okbg:#e3f1e9; --bad:#b3261e; --badbg:#fbe9e7; --red:#c62828;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#161a18; --card:#1f2421; --ink:#e8ebe9; --sub:#9aa39e; --line:#333a36;
+      --ok:#5fcf9a; --okbg:#1c3328; --bad:#ff8a80; --badbg:#3a2220; --red:#ff7b72;}
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%; text-size-adjust:100%}
+  html,body{margin:0; width:100%; overflow-x:hidden}
+  body{
+    background:var(--bg); color:var(--ink); font-size:17px;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+    min-height:100vh; min-height:100dvh; display:flex; flex-direction:column;
+  }
+  .bar{
+    position:sticky; top:0; z-index:5; background:var(--card); border-bottom:1px solid var(--line);
+    padding:calc(12px + env(safe-area-inset-top)) 16px 12px;
+    font-size:19px; font-weight:700; text-align:center;
+  }
+  main{flex:1; width:100%; max-width:640px; margin:0 auto; padding:14px 12px calc(24px + env(safe-area-inset-bottom))}
+  .lead{color:var(--sub); font-size:15px; margin:0 2px 14px; line-height:1.6}
+  .box{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:12px}
+  label.f{display:block; font-size:16px; font-weight:600; margin:0 0 8px}
+  input[type=text]{
+    width:100%; font-size:18px; padding:13px 14px; border-radius:10px; margin-bottom:18px;
+    border:1px solid var(--line); background:transparent; color:var(--ink);
+  }
+  #idno{font-family:ui-monospace,Menlo,Consolas,monospace; letter-spacing:.06em}
+  .seg{display:flex; gap:10px; margin-bottom:18px}
+  .seg label{flex:1; position:relative; display:block}
+  .seg input{position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer}
+  .seg span{display:block; text-align:center; font-size:18px; padding:13px 14px; border-radius:10px; border:1px solid var(--line)}
+  .seg input:checked+span{background:var(--ink); color:var(--bg); border-color:var(--ink)}
+  .seg input:focus-visible+span{outline:2px solid var(--ok); outline-offset:2px}
+  input:focus-visible,button:focus-visible{outline:2px solid var(--ok); outline-offset:2px}
+  button{
+    width:100%; font-size:17px; padding:14px; border-radius:10px; cursor:pointer;
+    border:1px solid var(--ink); background:var(--ink); color:var(--bg);
+  }
+  button:disabled{opacity:.45; cursor:default}
+  button.alt{background:transparent; color:var(--ink); border-color:var(--line)}
+  .photo-btns{display:flex; gap:10px; margin-bottom:12px}
+  .photo-btns button{flex:1; width:auto}
+  #preview{display:none; width:100%; max-height:300px; object-fit:contain; border:1px solid var(--line); border-radius:10px; margin-bottom:18px}
+  .pledge-title{
+    text-align:center; color:var(--red); font-weight:800; font-size:24px;
+    letter-spacing:.35em; text-indent:.35em; margin:6px 0 12px;
+  }
+  .pledge{color:var(--red); font-size:16px; line-height:1.9; margin-bottom:16px}
+  .agree{display:flex; gap:12px; align-items:flex-start; font-size:16px; line-height:1.6; margin-bottom:14px}
+  .agree input{margin:3px 0 0; width:22px; height:22px; flex:0 0 22px}
+  #sign{
+    display:block; width:100%; height:260px; border:1px solid var(--line); border-radius:10px;
+    touch-action:none; background:#fff;
+  }
+  #sign.locked{background:#eceae4; touch-action:pan-y}
+  #signHint{font-size:14px; color:var(--sub); line-height:1.6; margin:8px 0 10px; min-height:4.8em}
+  #clearSign{margin:0 0 16px}
+  #msg{position:fixed; left:12px; right:12px; top:calc(env(safe-area-inset-top) + 64px); z-index:10; max-width:616px; margin:0 auto; padding:12px 14px; border-radius:10px; font-size:15px; line-height:1.6; display:none; box-shadow:0 4px 14px rgba(0,0,0,.18)}
+  #msg.ok{display:block; background:var(--okbg); color:var(--ok)}
+  #msg.err{display:block; background:var(--badbg); color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="bar">回收黄金登记</div>
+<main>
+  <p class="lead">请如实填写，提交后资料会逐项显示在店员页面，由店员核对。</p>
+  <div class="box" style="font-size:16px;line-height:1.7">登记时间：<strong id="stamp"></strong></div>
+
+  <div class="box" id="formbox">
+    <label class="f" for="name">姓名</label>
+    <input id="name" type="text" autocomplete="name" maxlength="20" placeholder="与身份证一致">
+
+    <label class="f">性别</label>
+    <div class="seg" role="radiogroup" aria-label="性别">
+      <label><input type="radio" name="gender" value="男"><span>男</span></label>
+      <label><input type="radio" name="gender" value="女"><span>女</span></label>
+    </div>
+
+    <label class="f" for="idno">身份证号码</label>
+    <input id="idno" type="text" inputmode="text" autocomplete="off" autocapitalize="characters"
+           spellcheck="false" maxlength="18" placeholder="18 位号码">
+
+    <label class="f" for="mobile">手机号码</label>
+    <input id="mobile" type="text" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="请输入联系电话">
+
+    <label class="f" for="address">居住地址</label>
+    <input id="address" type="text" autocomplete="street-address" maxlength="120" placeholder="请输入居住地址">
+
+    <label class="f">物品照片（仅 1 张）</label>
+    <div class="photo-btns">
+      <button type="button" class="alt" id="btnCamera">拍照</button>
+      <button type="button" class="alt" id="btnAlbum">从相册选择</button>
+    </div>
+    <input id="photoCamera" type="file" accept="image/*" capture="environment" hidden>
+    <input id="photoAlbum" type="file" accept="image/*" hidden>
+    <img id="preview" alt="物品照片预览">
+  </div>
+
+  <div class="box">
+    <h2 class="pledge-title">承诺书</h2>
+    <div class="pledge">本人自愿卖掉自己的私有物品，该物品来源合法，属于我个人所有，不是盗取、骗取和来路不明物品。如今后发现该物品涉及刑、民事纠纷等，我个人愿意承担一切责任。<br>因货物构成犯法或个人争议，一律由确认签字人承担，与本店无关。特此承诺！</div>
+    <label class="agree"><input id="readit" type="checkbox"><span>本人已阅读以上温馨提示</span></label>
+
+    <label class="f">承诺人手写签名</label>
+    <canvas id="sign" width="700" height="400"></canvas>
+    <div id="signHint"></div>
+    <button type="button" id="clearSign" class="alt">清除签名重写</button>
+
+    <label class="agree">
+      <input id="agree" type="checkbox">
+      <span>我同意商家仅为办理业务登记、核对身份的目的收集和使用以上信息。（勾选后签名锁定）</span>
+    </label>
+    <button id="send" type="button">提交</button>
+  </div>
+
+</main>
+
+<div id="msg" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+  // 部署 Worker 后，把这里改成你的 Worker 地址，例如 https://idcard.xxx.workers.dev
+  var API_BASE = "https://idcard.cai666888.dpdns.org";
+
+  var W = [7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2];
+  var C = ["1","0","X","9","8","7","6","5","4","3","2"];
+  var PROV = {11:1,12:1,13:1,14:1,15:1,21:1,22:1,23:1,31:1,32:1,33:1,34:1,35:1,36:1,37:1,
+              41:1,42:1,43:1,44:1,45:1,46:1,50:1,51:1,52:1,53:1,54:1,61:1,62:1,63:1,64:1,65:1,
+              71:1,81:1,82:1};
+
+  function idProblem(s){
+    if (!/^\d{17}[\dX]$/.test(s)) return "身份证号码应为 18 位（最后一位可以是 X），请检查。";
+    if (!PROV[parseInt(s.slice(0,2),10)]) return "号码前两位不正确，请检查。";
+    var y = +s.slice(6,10), m = +s.slice(10,12), d = +s.slice(12,14);
+    var dt = new Date(y, m-1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m-1 || dt.getDate() !== d || dt > new Date() || y < 1900)
+      return "号码里的出生日期不正确，请检查。";
+    var sum = 0;
+    for (var i = 0; i < 17; i++) sum += +s[i] * W[i];
+    if (C[sum % 11] !== s[17]) return "号码校验没有通过，可能输错了某一位，请对照证件再检查。";
+    return "";
+  }
+
+  var $ = function(id){ return document.getElementById(id); };
+  var msgTimer = null;
+  function hideMsg(){ var m = $("msg"); clearTimeout(msgTimer); m.className = ""; m.textContent = ""; }
+  function show(t, cls, ms){
+    var m = $("msg"); clearTimeout(msgTimer);
+    m.textContent = t; m.className = cls;
+    if (ms === undefined && cls === "err") ms = 5000;
+    if (ms) msgTimer = setTimeout(hideMsg, ms);
+  }
+  $("msg").addEventListener("click", hideMsg);
+  function stamp(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2)+" "+("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)+":"+("0"+d.getSeconds()).slice(-2); }
+  $("stamp").textContent = stamp();
+
+  /* ---------- 物品照片：拍照 / 相册选择，自动压缩到约 0.7MB 以内 ---------- */
+  var MAX_SIDE = 1600;      // 长边最大像素
+  var LIMIT = 1000000;      // 压缩后 base64 长度上限（约 730 KB 图片）
+  var photoData = "", photoBusy = false;
+
+  function compress(file){
+    return new Promise(function(resolve, reject){
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function(){
+        URL.revokeObjectURL(url);
+        var w = img.naturalWidth, h = img.naturalHeight;
+        if (!w || !h) { reject(new Error("bad")); return; }
+        var scale = Math.min(1, MAX_SIDE / Math.max(w, h));
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+        var q = 0.85, out = "";
+        var cv = document.createElement("canvas");
+        for (var i = 0; i < 14; i++) {
+          cv.width = cw; cv.height = ch;
+          var g = cv.getContext("2d");
+          g.fillStyle = "#fff"; g.fillRect(0, 0, cw, ch);
+          g.drawImage(img, 0, 0, cw, ch);
+          out = cv.toDataURL("image/jpeg", q);
+          if (out.length <= LIMIT) { resolve(out); return; }
+          if (q > 0.5) q -= 0.1;
+          else { cw = Math.round(cw * 0.8); ch = Math.round(ch * 0.8); }
+        }
+        reject(new Error("too big"));
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error("load")); };
+      img.src = url;
+    });
+  }
+
+  function onPick(){
+    var input = this, f = input.files && input.files[0];
+    if (!f) return;
+    photoBusy = true; photoData = "";
+    $("preview").style.display = "none";
+    show("照片处理中，请稍候…", "ok");
+    compress(f).then(function(d){
+      photoData = d;
+      $("preview").src = d; $("preview").style.display = "block";
+      show("照片已处理（约 " + Math.round(d.length * 0.75 / 1024) + " KB）。", "ok", 2500);
+    }).catch(function(){
+      show("这张照片无法处理，请换一张或重新拍摄。", "err");
+    }).then(function(){
+      photoBusy = false; input.value = "";
+    });
+  }
+  $("btnCamera").addEventListener("click", function(){ $("photoCamera").click(); });
+  $("btnAlbum").addEventListener("click", function(){ $("photoAlbum").click(); });
+  $("photoCamera").addEventListener("change", onPick);
+  $("photoAlbum").addEventListener("change", onPick);
+
+  /* ---------- 签名：先勾选“已阅读”才能签；勾选“确定”后锁定 ---------- */
+  var sign = $("sign"), sg = null, drawing = false, signed = false;
+  var readit = $("readit"), agree = $("agree");
+
+  function initCanvas(){
+    var r = sign.getBoundingClientRect();
+    sign.width = 700;
+    sign.height = Math.max(200, Math.round(700 * r.height / Math.max(r.width, 1)));
+    sg = sign.getContext("2d");
+    sg.strokeStyle = "#111"; sg.lineWidth = 5; sg.lineCap = "round"; sg.lineJoin = "round";
+  }
+  var inView = false;
+  // 必须把页面一直滑到最底部才能签名（避免往下滑动时手指碰到签名框写出笔画）
+  function checkView(){
+    var dist = document.documentElement.scrollHeight - (window.innerHeight + window.pageYOffset);
+    var v = inView;
+    if (dist <= 8) v = true; else if (dist > 120) v = false;
+    if (v !== inView) { inView = v; refreshSign(); }
+  }
+  function locked(){ return !readit.checked || agree.checked || !inView; }
+  function refreshSign(){
+    sign.classList.toggle("locked", locked());
+    $("clearSign").disabled = agree.checked;
+    var h;
+    if (!readit.checked) h = "请先勾选上方“本人已阅读以上温馨提示”，才能签名。";
+    else if (agree.checked) h = "签名已锁定。如需重签，请先取消勾选下方“我同意…”。";
+    else if (!inView) h = "请先把页面一直滑到最底部，才能签名。";
+    else if (!signed) h = "请在框内手写签名。";
+    else h = "签好后请勾选下方“我同意…”，签名会自动锁定；不满意可点“清除签名重写”。";
+    $("signHint").textContent = h;
+  }
+  function pos(e){ var r = sign.getBoundingClientRect(); return {x:(e.clientX-r.left)*sign.width/r.width, y:(e.clientY-r.top)*sign.height/r.height}; }
+
+  sign.addEventListener("pointerdown", function(e){
+    if (locked()) return;
+    drawing = true; sign.setPointerCapture(e.pointerId);
+    var p = pos(e); sg.beginPath(); sg.moveTo(p.x, p.y);
+  });
+  sign.addEventListener("pointermove", function(e){
+    if (!drawing) return;
+    var p = pos(e); sg.lineTo(p.x, p.y); sg.stroke();
+    if (!signed) { signed = true; refreshSign(); }
+  });
+  sign.addEventListener("click", function(){
+    if (locked()) show($("signHint").textContent, "err", 3000);
+  });
+  function stopDraw(){ drawing = false; }
+  sign.addEventListener("pointerup", stopDraw);
+  sign.addEventListener("pointercancel", stopDraw);
+
+  function clearSign(){ sg.clearRect(0, 0, sign.width, sign.height); signed = false; refreshSign(); }
+  $("clearSign").addEventListener("click", clearSign);
+  readit.addEventListener("change", function(){ if (!readit.checked) agree.checked = false; refreshSign(); });
+  agree.addEventListener("change", function(){
+    if (agree.checked && !signed) { agree.checked = false; show("请先在签名框内签名，再勾选同意。", "err", 3000); }
+    refreshSign();
+  });
+  window.addEventListener("resize", function(){ if (!signed && !drawing) initCanvas(); checkView(); });
+  window.addEventListener("scroll", checkView, {passive:true});
+  initCanvas(); checkView(); refreshSign();
+
+  /* ---------- 提交 ---------- */
+  $("send").addEventListener("click", function(){
+    var name = $("name").value.trim();
+    var idno = $("idno").value.trim().toUpperCase();
+    if (!name) { show("请填写姓名。", "err"); return; }
+    var gEl = document.querySelector('input[name="gender"]:checked'), gender = gEl ? gEl.value : "";
+    if (!gender) { show("请选择性别。", "err"); return; }
+    var p = idProblem(idno);
+    if (p) { show(p, "err"); return; }
+    var mobile = $("mobile").value.trim(), address = $("address").value.trim();
+    if (!/^1[3-9]\d{9}$/.test(mobile)) { show("请填写正确的 11 位手机号码。", "err"); return; }
+    if (!address) { show("请填写居住地址。", "err"); return; }
+    if (photoBusy) { show("照片还在处理中，请稍等。", "err"); return; }
+    if (!photoData) { show("请拍摄或选择 1 张物品照片。", "err"); return; }
+    if (!readit.checked) { show("请先勾选已阅读承诺书。", "err"); return; }
+    if (!signed) { show("请在签名框内手写签名。", "err"); return; }
+    if (!agree.checked) { show("请先勾选信息使用同意（勾选后签名锁定）。", "err"); return; }
+    if (/你的/.test(API_BASE)) { show("页面还没有配置提交地址，请告知店员。", "err"); return; }
+    if (location.protocol !== "https:" && location.protocol !== "http:") { show("请用网址打开本页（https://snnk.qzz.io/apply.html），不能直接打开文件，否则无法提交。", "err"); return; }
+
+    var btn = $("send"); btn.disabled = true; show("正在提交…", "ok");
+    fetch(API_BASE.replace(/\/+$/, "") + "/submit", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({name:name, gender:gender, idno:idno, mobile:mobile, address:address, submittedAt:$("stamp").textContent, photo:photoData, signature:sign.toDataURL("image/png"), readit:true})
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(j){
+        if (res.ok && j.ok) {
+          show("已提交。请告知店员，由店员核对后确认。", "ok", 10000);
+          $("name").value = ""; if (gEl) gEl.checked = false; $("idno").value = ""; $("mobile").value = ""; $("address").value = "";
+          photoData = ""; $("preview").style.display = "none";
+          agree.checked = false; readit.checked = false;
+          clearSign();
+          setTimeout(function(){ btn.disabled = false; }, 4000);
+        } else {
+          show(j.error || "提交失败，请重试。", "err"); btn.disabled = false;
+        }
+      });
+    }).catch(function(){
+      show("网络不通，请检查网络后重试。", "err"); btn.disabled = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
